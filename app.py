@@ -143,27 +143,31 @@ def b64_image(file_bytes: bytes) -> str:
 
 
 def caption_image_with_gpt(file_bytes: bytes, target_lang: str = "en") -> str:
-    """Ask GPT-4o to describe the uploaded image as a single, rich prompt.
-    Returns a string caption suitable for DALL·E prompting.
+    """
+    Ask GPT-4o to describe the uploaded image as a single, rich prompt.
+    Uses Azure OpenAI (Vision) → returns a caption string.
     """
     headers = {"Content-Type": "application/json", "api-key": AZURE_API_KEY}
     url = f"{AZURE_ENDPOINT.rstrip('/')}/openai/deployments/{AZURE_DEPLOYMENT}/chat/completions?api-version={AZURE_API_VERSION}"
 
     system_msg = (
-        "You are an art director. Describe the image as ONE concise prompt for vector illustration generation. "
+        "You are an art director. Describe the uploaded image as ONE concise prompt for vector illustration generation. "
         "Focus on subjects, setting, composition, perspective/camera, lighting, color palette, mood, and style hints. "
         "Keep it family-friendly and avoid brand names, logos, text, or celebrity likeness. "
-        "Write the description in the user's requested language."
+        f"Write the description in {target_lang}."
     )
 
-    # Azure Chat Completions (vision) message format
+    # Encode the image as base64 → send via `image_url`
+    b64_img = base64.b64encode(file_bytes).decode()
+    img_payload = f"data:image/png;base64,{b64_img}"
+
     messages = [
         {"role": "system", "content": system_msg},
         {
             "role": "user",
             "content": [
-                {"type": "text", "text": f"Language: {target_lang}. Describe as one paragraph."},
-                {"type": "input_image", "image_url": {"url": b64_image(file_bytes)}},
+                {"type": "text", "text": f"Describe the image in {target_lang} as one short paragraph."},
+                {"type": "image_url", "image_url": {"url": img_payload}},  # <-- FIXED HERE ✅
             ],
         },
     ]
@@ -176,10 +180,11 @@ def caption_image_with_gpt(file_bytes: bytes, target_lang: str = "en") -> str:
             return r.json()["choices"][0]["message"]["content"].strip()
         else:
             st.error(f"GPT-4o captioning error {r.status_code}: {r.text[:300]}")
-            return "A friendly, abstract vector scene inspired by the reference image."
+            return "An abstract, colorful, vector-style illustration inspired by the uploaded image."
     except Exception as e:
         st.error(f"GPT-4o caption request failed: {e}")
-        return "A friendly, abstract vector scene inspired by the reference image."
+        return "An abstract, colorful, vector-style illustration inspired by the uploaded image."
+
 
 
 # ---------------------------
